@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+
+    environment {
+        LAMBDA_FUNCTION_NAME = "DocumentDBConnection"
+        ZIP_FILE = "function.zip"
+        AWS_REGION = "us-east-1" // cambia según tu región
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Zip function code') {
+            steps {
+                sh 'zip -r ${ZIP_FILE} .'
+            }
+        }
+
+        stage('Deploy to Lambda') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials-id', // ← reemplaza con tu ID real en Jenkins
+                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                ]]) {
+                    sh '''
+                        aws lambda update-function-code \
+                          --function-name $LAMBDA_FUNCTION_NAME \
+                          --zip-file fileb://$ZIP_FILE \
+                          --region $AWS_REGION
+                    '''
+                }
+            }
+        }
+
+        stage('Clean workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+    }
+
+    post {
+        success {
+            echo ' Lambda updated successfully!'
+        }
+        failure {
+            echo ' Error updating Lambda'
+        }
+    }
+}
